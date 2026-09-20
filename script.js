@@ -16,7 +16,7 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
-// Nastavenie kategórií: 4 a 5 majú násobenie aj delenie, všade chýbajú PRESNE 3 čísla
+// Nastavenia obtiažností - 4, 5 aj Freeplay obsahujú *, /
 const STAGES = [
   { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 10, ops: ["+", "-"] },
   { name: "2/5 Medium", cls: "stage-medium", hide: 3, minNum: 1, maxNum: 20, ops: ["+", "-"] },
@@ -36,12 +36,12 @@ const TEMPLATE_GRID = {
     ["n", "op", "n", "eq", "n"],
   ],
   equations: [
-    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] }, // Riadok 1
-    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] }, // Riadok 2
-    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] }, // Riadok 3
-    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] }, // Stĺpec 1
-    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] }, // Stĺpec 2
-    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] }, // Stĺpec 3
+    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] }, // R1
+    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] }, // R2
+    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] }, // R3
+    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] }, // C1
+    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] }, // C2
+    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] }, // C3
   ]
 };
 
@@ -97,8 +97,8 @@ function loadDailyProgress() {
 function enableFreeplayMode() {
   stageLabelEl.textContent = "Freeplay ♾️";
   stageBadgeEl.className = "stat stage-extreme";
-  setFeedback("You solved today's challenge! Enjoy endless Freeplay mode.", "good");
-  nextBtn.textContent = "Next Freeplay";
+  setFeedback("Dnešnú výzvu máš hotovú! Hráš nekonečný Freeplay.", "good");
+  nextBtn.textContent = "Ďalší Freeplay";
   nextBtn.disabled = false;
   generateFreeplayPuzzle();
 }
@@ -122,7 +122,7 @@ function completeDailyChallenge() {
   nextBtn.textContent = "Freeplay ♾️";
   nextBtn.disabled = false;
   checkBtn.disabled = true;
-  setFeedback("Awesome! You completed today's challenge. Click 'Freeplay' to play infinite puzzles!", "good");
+  setFeedback("Super! Dokončil si dnešnú výzvu. Klikni na Freeplay pre nekonečné hranie!", "good");
 }
 
 function applyOp(a, op, b) {
@@ -135,14 +135,14 @@ function applyOp(a, op, b) {
 
 function keyOf(r, c) { return `${r},${c}`; }
 
-// Nepriestrelné generovanie mriežky s celými číslami
+// Garantované generovanie aj s násobením/delením
 function generatePuzzleData(stageIndex, isFreeplayMode = false) {
   const stage = STAGES[stageIndex];
   const template = TEMPLATE_GRID;
   const rng = isFreeplayMode ? Math.random : createPRNG(getDailySeed(stageIndex));
   const opMap = { "+": "+", "-": "−", "*": "×", "/": "÷" };
 
-  for (let attempt = 0; attempt < 20000; attempt++) {
+  for (let attempt = 0; attempt < 30000; attempt++) {
     const values = {};
     const selectedOps = [];
 
@@ -154,7 +154,7 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     function getValidOp(a, b) {
       const valid = stage.ops.map(o => opMap[o]).filter(op => {
         const res = applyOp(a, op, b);
-        return res !== null && Number.isInteger(res) && res >= stage.minNum && res <= stage.maxNum;
+        return res !== null && Number.isInteger(res) && res >= 1 && res <= stage.maxNum;
       });
       return valid.length > 0 ? valid[Math.floor(rng() * valid.length)] : null;
     }
@@ -176,11 +176,7 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
 
     const n44 = applyOp(n04, opC3, n24);
 
-    const validR3Ops = stage.ops.map(o => opMap[o]).filter(op => {
-      const res = applyOp(n40, op, n42);
-      return res === n44;
-    });
-
+    const validR3Ops = stage.ops.map(o => opMap[o]).filter(op => applyOp(n40, op, n42) === n44);
     if (validR3Ops.length === 0) continue;
 
     const opR3 = validR3Ops[Math.floor(rng() * validR3Ops.length)];
@@ -192,6 +188,7 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     selectedOps[0] = opR1; selectedOps[1] = opR2; selectedOps[2] = opR3;
     selectedOps[3] = opC1; selectedOps[4] = opC2; selectedOps[5] = opC3;
 
+    // Presne 3 skryté políčka
     const blanks = new Set();
     const allKeys = Object.keys(values);
     allKeys.sort(() => rng() - 0.5);
@@ -200,11 +197,11 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     return { template, ops: selectedOps, values, blanks };
   }
 
-  // Záložná matica ak by algoritmus zlyhal
+  // Odstránený starý prázdny fallback – vygenerujeme záložnú s násobením
   return {
     template,
-    ops: ["×", "÷", "+", "÷", "×", "−"],
-    values: { "0,0": 12, "0,2": 4, "0,4": 48, "2,0": 4, "2,2": 2, "2,4": 2, "4,0": 3, "4,2": 8, "4,4": 46 },
+    ops: ["×", "÷", "×", "÷", "×", "÷"],
+    values: { "0,0": 6, "0,2": 3, "0,4": 18, "2,0": 2, "2,2": 3, "2,4": 6, "4,0": 3, "4,2": 1, "4,4": 3 },
     blanks: new Set(["0,2", "2,0", "4,4"])
   };
 }
@@ -252,7 +249,7 @@ function selectCell(el) {
   blankButtons().forEach((btn) => btn.classList.remove("active"));
   el.classList.add("active");
   activeKey = el.dataset.key;
-  numpadLabel.textContent = el.textContent ? `Editing ${el.textContent}` : "Enter a number";
+  numpadLabel.textContent = el.textContent ? `Upravuješ ${el.textContent}` : "Zadaj číslo";
   numpadEl.hidden = false;
 }
 
@@ -268,7 +265,7 @@ function fillActive(digit) {
   const cell = activeCell();
   if (!cell) return;
 
-  if (cell.textContent.length < 2) {
+  if (cell.textContent.length < 3) {
     cell.textContent += digit;
   } else {
     cell.textContent = digit;
@@ -285,16 +282,16 @@ function clearActive() {
 }
 
 function buildNumpad() {
-  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "Next"];
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "Ďalší"];
   numpadKeys.replaceChildren();
   keys.forEach((label) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = label;
-    if (label === "⌫" || label === "Next") btn.classList.add("key-action");
+    if (label === "⌫" || label === "Ďalší") btn.classList.add("key-action");
     btn.addEventListener("click", () => {
       if (label === "⌫") clearActive();
-      else if (label === "Next") {
+      else if (label === "Ďalší") {
         const remaining = blankButtons().filter((b) => b.textContent === "" || b.dataset.key !== activeKey);
         const current = activeCell();
         const nextEmpty = blankButtons().find((b) => b.textContent === "" && b !== current);
@@ -337,15 +334,15 @@ function checkAnswers() {
 
     if (isFreeplay) {
       nextBtn.disabled = false;
-      setFeedback("Great job! Puzzle solved.", "good");
+      setFeedback("Výborne! Mriežka vyriešená.", "good");
     } else if (currentStageIndex === STAGES.length - 1) {
       completeDailyChallenge();
     } else {
       nextBtn.disabled = false;
-      setFeedback('Stage completed! Click "Next Puzzle" to proceed.', "good");
+      setFeedback('Úroveň dokončená! Klikni na "Ďalšie puzzle".', "good");
     }
   } else {
-    setFeedback("Some numbers are incorrect. Check the red boxes!", "bad");
+    setFeedback("Niekde máš chybu. Skontroluj červené políčka!", "bad");
   }
   closeNumpad();
 }
@@ -373,13 +370,14 @@ function generatePuzzle() {
   puzzle = generatePuzzleData(currentStageIndex, false);
   checkBtn.disabled = false;
   nextBtn.disabled = true;
-  nextBtn.textContent = "Next Puzzle";
+  nextBtn.textContent = "Ďalšie puzzle";
   closeNumpad();
   renderPuzzle();
-  setFeedback(`Solve stage: ${stage.name}`, "neutral");
+  setFeedback(`Úroveň: ${stage.name}`, "neutral");
 }
 
 function generateFreeplayPuzzle() {
+  // Freeplay vždy ťahá náhodnú náročnosť z kategórie Extreme (index 4), ktorá má aj * a /
   updateStageBadge(STAGES[4]);
   stageLabelEl.textContent = "Freeplay ♾️";
 
@@ -388,7 +386,7 @@ function generateFreeplayPuzzle() {
   nextBtn.disabled = true;
   closeNumpad();
   renderPuzzle();
-  setFeedback("Freeplay mode: Solve the puzzle!", "neutral");
+  setFeedback("Freeplay mód: Vyrieš mriežku!", "neutral");
 }
 
 function renderCalendar() {
