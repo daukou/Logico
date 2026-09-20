@@ -14,7 +14,7 @@
   --radius: 18px;
   --gap: 3px;
 
-  /* Farby pre obtiažnosti */
+  /* Farby obtiažností */
   --stage-easy: #34d399;
   --stage-medium: #60a5fa;
   --stage-hard: #facc15;
@@ -116,8 +116,6 @@ body {
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid var(--border);
-
-  /* Vodorovné aj zvislé zarovnanie na stred */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -147,7 +145,6 @@ body {
   font-weight: 700;
 }
 
-/* Dynamické podfarbenie/text pre Stage podla obtiažnosti */
 .stage-easy .stat-value { color: var(--stage-easy); }
 .stage-medium .stat-value { color: var(--stage-medium); }
 .stage-hard .stat-value { color: var(--stage-hard); }
@@ -182,7 +179,7 @@ body {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  font-size: clamp(0.78rem, 4.2vw, 1.35rem);
+  font-size: clamp(0.7rem, 3.8vw, 1.25rem);
   font-weight: 700;
   user-select: none;
 }
@@ -204,7 +201,7 @@ body {
   border: 1px solid rgba(34, 211, 238, 0.22);
   color: var(--cyan);
   text-shadow: 0 0 14px rgba(34, 211, 238, 0.4);
-  font-size: clamp(0.95rem, 4.6vw, 1.5rem);
+  font-size: clamp(0.85rem, 4.2vw, 1.4rem);
 }
 
 .cell.eq {
@@ -221,7 +218,7 @@ body {
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: clamp(0.78rem, 4.2vw, 1.35rem);
+  font-size: clamp(0.7rem, 3.8vw, 1.25rem);
   font-weight: 700;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
@@ -296,17 +293,9 @@ body {
   font-weight: 600;
 }
 
-.feedback.good {
-  color: var(--correct);
-}
-
-.feedback.bad {
-  color: var(--incorrect);
-}
-
-.feedback.neutral {
-  color: var(--muted);
-}
+.feedback.good { color: var(--correct); }
+.feedback.bad { color: var(--incorrect); }
+.feedback.neutral { color: var(--muted); }
 
 .numpad {
   position: fixed;
@@ -375,7 +364,7 @@ body {
   font-size: 0.95rem;
 }
 
-/* Modal & Calendar Styles */
+/* Modal & Calendar */
 .modal {
   position: fixed;
   inset: 0;
@@ -388,9 +377,7 @@ body {
   padding: 16px;
 }
 
-.modal[hidden] {
-  display: none;
-}
+.modal[hidden] { display: none; }
 
 .modal-content {
   width: min(380px, 100%);
@@ -456,7 +443,5 @@ body {
     align-items: center;
   }
 
-  .cell {
-    border-radius: 6px;
-  }
+  .cell { border-radius: 6px; }
 }
