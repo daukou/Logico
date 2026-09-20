@@ -16,36 +16,57 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
-// Definícia obtiažností podľa číselných rozsahov (1 alebo 2-ciferné čísla)
+// Definícia Stage-ov
 const STAGES = [
-  { name: "1/5 Easy", cls: "stage-easy", hide: 4, minNum: 1, maxNum: 9, ops: ["+", "-"] },
-  { name: "2/5 Medium", cls: "stage-medium", hide: 4, minNum: 1, maxNum: 20, ops: ["+", "-", "*"] },
-  { name: "3/5 Hard", cls: "stage-hard", hide: 5, minNum: 5, maxNum: 50, ops: ["+", "-", "*", "/"] },
-  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 5, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] },
-  { name: "5/5 Extreme", cls: "stage-extreme", hide: 6, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] }
+  { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 9, ops: ["+", "-"], size: 5 },
+  { name: "2/5 Medium", cls: "stage-medium", hide: 4, minNum: 1, maxNum: 15, ops: ["+", "-", "*"], size: 5 },
+  { name: "3/5 Hard", cls: "stage-hard", hide: 5, minNum: 1, maxNum: 30, ops: ["+", "-", "*", "/"], size: 5 },
+  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 5, minNum: 10, maxNum: 50, ops: ["+", "-", "*", "/"], size: 5 },
+  { name: "5/5 Extreme 6x6", cls: "stage-extreme", hide: 7, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"], size: 6 }
 ];
 
-const TEMPLATES = [
-  {
-    rows: 5,
-    cols: 5,
-    cells: [
-      ["n", "op", "n", "eq", "n"],
-      ["op", null, "op", null, "op"],
-      ["n", "op", "n", "eq", "n"],
-      ["eq", null, "eq", null, "eq"],
-      ["n", "op", "n", "eq", "n"],
-    ],
-    equations: [
-      { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] },
-      { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] },
-      { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] },
-      { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] },
-      { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] },
-      { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] },
-    ],
-  }
-];
+// Šablóna 5x5
+const TEMPLATE_5x5 = {
+  cols: 5,
+  rows: 5,
+  cells: [
+    ["n", "op", "n", "eq", "n"],
+    ["op", null, "op", null, "op"],
+    ["n", "op", "n", "eq", "n"],
+    ["eq", null, "eq", null, "eq"],
+    ["n", "op", "n", "eq", "n"],
+  ],
+  equations: [
+    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] },
+    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] },
+    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] },
+    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] },
+    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] },
+    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] },
+  ]
+};
+
+// Šablóna 6x6
+const TEMPLATE_6x6 = {
+  cols: 6,
+  rows: 6,
+  cells: [
+    ["n", "op", "n", "eq", "n", null],
+    ["op", null, "op", null, "op", null],
+    ["n", "op", "n", "eq", "n", null],
+    ["eq", null, "eq", null, "eq", null],
+    ["n", "op", "n", "eq", "n", null],
+    [null, null, null, null, null, null]
+  ],
+  equations: [
+    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] },
+    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] },
+    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] },
+    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] },
+    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] },
+    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] },
+  ]
+};
 
 let currentStageIndex = 0;
 let puzzle = null;
@@ -56,15 +77,19 @@ function getTodayString() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Pseudo-náhodný generátor pre fixný denný Seed
-function seededRandom(seed) {
-  let x = Math.sin(seed++) * 10000;
-  return x - Math.floor(x);
+// Deterministický Seed pre synchrónny denný puzzle (Worlde style)
+function createPRNG(seed) {
+  let s = seed % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return function () {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
 }
 
 function getDailySeed(stageIdx) {
   const dateStr = getTodayString().replace(/-/g, "");
-  return parseInt(dateStr, 10) * 10 + stageIdx;
+  return parseInt(dateStr, 10) * 100 + stageIdx + 7;
 }
 
 function loadDailyProgress() {
@@ -96,8 +121,8 @@ function loadDailyProgress() {
 function enableFreeplayMode() {
   stageLabelEl.textContent = "Freeplay ♾️";
   stageBadgeEl.className = "stat stage-extreme";
-  setFeedback("Dnešnú výzvu si už úspešne dokončil! Hráš neobmedzený Freeplay módu.", "good");
-  nextBtn.textContent = "Next Puzzle (Freeplay)";
+  setFeedback("You solved today's challenge! Enjoy endless Freeplay mode.", "good");
+  nextBtn.textContent = "Next Freeplay";
   nextBtn.disabled = false;
   generateFreeplayPuzzle();
 }
@@ -124,19 +149,6 @@ function completeDailyChallenge() {
   setFeedback("Awesome! You completed today's challenge. Click 'Freeplay' to play infinite puzzles!", "good");
 }
 
-function randIntSeeded(min, max, seedState) {
-  const rng = seededRandom(seedState.seed++);
-  return Math.floor(rng * (max - min + 1)) + min;
-}
-
-function pickSeeded(arr, seedState) {
-  return arr[randIntSeeded(0, arr.length - 1, seedState)];
-}
-
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
-function keyOf(r, c) { return `${r},${c}`; }
-
 function applyOp(a, op, b) {
   if (op === "+") return a + b;
   if (op === "−") return a - b;
@@ -145,133 +157,88 @@ function applyOp(a, op, b) {
   return null;
 }
 
-function isValidNumber(n, min, max) { return Number.isInteger(n) && n >= min && n <= max; }
+function keyOf(r, c) { return `${r},${c}`; }
 
-function invertForB(a, op, c) {
-  if (op === "+") return c - a;
-  if (op === "−") return a - c;
-  if (op === "×") return a !== 0 && c % a === 0 ? c / a : null;
-  if (op === "÷") return c !== 0 && a % c === 0 ? a / c : null;
-  return null;
-}
-function invertForA(b, op, c) {
-  if (op === "+") return c - b;
-  if (op === "−") return c + b;
-  if (op === "×") return b !== 0 && c % b === 0 ? c / b : null;
-  if (op === "÷") return c * b;
-  return null;
-}
-
-function numberCells(template) {
-  const cells = [];
-  template.cells.forEach((row, r) => {
-    row.forEach((type, c) => { if (type === "n") cells.push([r, c]); });
-  });
-  return cells;
-}
-
-function trySolve(template, ops, minNum, maxNum, seedState) {
-  const values = {};
-  let nodes = 0;
-  function get(pos) { return values[keyOf(pos[0], pos[1])]; }
-  function set(pos, n) { values[keyOf(pos[0], pos[1])] = n; }
-
-  function propagate() {
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (let i = 0; i < template.equations.length; i += 1) {
-        const eq = template.equations[i];
-        const op = ops[i];
-        const a = get(eq.a); const b = get(eq.b); const c = get(eq.c);
-        const known = [a, b, c].filter((n) => n !== undefined).length;
-
-        if (known === 3) {
-          if (applyOp(a, op, b) !== c) return false;
-        } else if (a !== undefined && b !== undefined && c === undefined) {
-          const res = applyOp(a, op, b);
-          if (!isValidNumber(res, minNum, maxNum)) return false;
-          set(eq.c, res); changed = true;
-        } else if (a !== undefined && c !== undefined && b === undefined) {
-          const res = invertForB(a, op, c);
-          if (!isValidNumber(res, minNum, maxNum)) return false;
-          set(eq.b, res); changed = true;
-        } else if (b !== undefined && c !== undefined && a === undefined) {
-          const res = invertForA(b, op, c);
-          if (!isValidNumber(res, minNum, maxNum)) return false;
-          set(eq.a, res); changed = true;
-        }
-      }
-    }
-    return true;
-  }
-
-  const cells = numberCells(template);
-  function search(index) {
-    if (++nodes > 3500) return false;
-    if (!propagate()) return false;
-    while (index < cells.length && get(cells[index]) !== undefined) index += 1;
-    if (index >= cells.length) return true;
-
-    const pos = cells[index];
-    const options = Array.from({length: maxNum - minNum + 1}, (_, i) => i + minNum);
-    
-    // Zamiešanie možností
-    for (let i = options.length - 1; i > 0; i -= 1) {
-      const j = seedState ? randIntSeeded(0, i, seedState) : randInt(0, i);
-      [options[i], options[j]] = [options[j], options[i]];
-    }
-
-    for (const n of options) {
-      const snapshot = { ...values };
-      set(pos, n);
-      if (search(index + 1)) return true;
-      Object.keys(values).forEach((k) => delete values[k]);
-      Object.assign(values, snapshot);
-    }
-    return false;
-  }
-  return search(0) ? values : null;
-}
-
+// Rýchly a stabilný generátor matematických rovníc
 function generatePuzzleData(stageIndex, isFreeplayMode = false) {
-  const currentStage = STAGES[stageIndex];
-  const targetHide = currentStage.hide;
-  const seedState = isFreeplayMode ? null : { seed: getDailySeed(stageIndex) };
+  const stage = STAGES[stageIndex];
+  const template = stage.size === 6 ? TEMPLATE_6x6 : TEMPLATE_5x5;
+  const rng = isFreeplayMode ? Math.random : createPRNG(getDailySeed(stageIndex));
+  const opMap = { "+": "+", "-": "−", "*": "×", "/": "÷" };
 
-  const opSymbols = { "+": "+", "-": "−", "*": "×", "/": "÷" };
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const values = {};
+    const ops = [];
 
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const template = TEMPLATES[0];
-    const rawOps = currentStage.ops.map(() => seedState ? pickSeeded(currentStage.ops, seedState) : pick(currentStage.ops));
-    const ops = rawOps.map(o => opSymbols[o] || o);
+    // Vytvorenie rovníc pre riadky a stĺpce
+    let success = true;
 
-    const values = trySolve(template, ops, currentStage.minNum, currentStage.maxNum, seedState);
-    if (!values) continue;
+    // Horizontálne 3 rovnice
+    for (let eqIdx = 0; eqIdx < 3; eqIdx++) {
+      const opChoice = opMap[stage.ops[Math.floor(rng() * stage.ops.length)]];
+      ops.push(opChoice);
 
-    const nums = numberCells(template);
-    const blanks = new Set();
-    const shuffled = [...nums];
-    
-    if (seedState) {
-      shuffled.sort(() => seededRandom(seedState.seed++) - 0.5);
-    } else {
-      shuffled.sort(() => Math.random() - 0.5);
+      let a = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+      let b = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+      
+      if (opChoice === "−" && a < b) [a, b] = [b, a];
+      if (opChoice === "÷") {
+        let mult = Math.floor(rng() * 4) + 1;
+        b = Math.floor(rng() * (Math.min(10, stage.maxNum) - stage.minNum + 1)) + stage.minNum;
+        a = b * mult;
+      }
+
+      let c = applyOp(a, opChoice, b);
+      if (c === null || c < stage.minNum || c > stage.maxNum) {
+        success = false; break;
+      }
+
+      const eq = template.equations[eqIdx];
+      values[keyOf(eq.a[0], eq.a[1])] = a;
+      values[keyOf(eq.b[0], eq.b[1])] = b;
+      values[keyOf(eq.c[0], eq.c[1])] = c;
     }
 
-    shuffled.slice(0, targetHide).forEach((pos) => blanks.add(keyOf(pos[0], pos[1])));
+    if (!success) continue;
+
+    // Vertikálne 3 rovnice
+    for (let eqIdx = 3; eqIdx < 6; eqIdx++) {
+      const eq = template.equations[eqIdx];
+      const a = values[keyOf(eq.a[0], eq.a[1])];
+      const b = values[keyOf(eq.b[0], eq.b[1])];
+      
+      // Nájdeme vhodnú operáciu pre existujúce A a B
+      const validOps = stage.ops.map(o => opMap[o]).filter(op => {
+        const res = applyOp(a, op, b);
+        return res !== null && res >= stage.minNum && res <= stage.maxNum;
+      });
+
+      if (validOps.length === 0) { success = false; break; }
+
+      const opChoice = validOps[Math.floor(rng() * validOps.length)];
+      ops.push(opChoice);
+      values[keyOf(eq.c[0], eq.c[1])] = applyOp(a, opChoice, b);
+    }
+
+    if (!success) continue;
+
+    // Výber skrytých políčok (blanks)
+    const blanks = new Set();
+    const numberKeys = Object.keys(values);
+    numberKeys.sort(() => rng() - 0.5);
+
+    numberKeys.slice(0, stage.hide).forEach(k => blanks.add(k));
 
     return { template, ops, values, blanks };
   }
-  return fallbackPuzzle();
-}
 
-function fallbackPuzzle() {
-  const template = TEMPLATES[0];
-  const ops = ["+", "+", "+", "+", "+", "+"];
-  const values = { "0,0": 12, "0,2": 15, "0,4": 27, "2,0": 10, "2,2": 20, "2,4": 30, "4,0": 22, "4,2": 35, "4,4": 57 };
-  const blanks = new Set(["0,0", "0,2", "2,0"]);
-  return { template, ops, values, blanks };
+  // Bezpečný Fallback ak by náhodou generovanie zlyhalo
+  return {
+    template,
+    ops: ["+", "+", "+", "+", "+", "+"],
+    values: { "0,0": 10, "0,2": 15, "0,4": 25, "2,0": 20, "2,2": 30, "2,4": 50, "4,0": 30, "4,2": 45, "4,4": 75 },
+    blanks: new Set(["0,0", "0,2", "2,0"])
+  };
 }
 
 function renderPuzzle() {
@@ -281,6 +248,16 @@ function renderPuzzle() {
 
   template.cells.forEach((row, r) => {
     row.forEach((type, c) => {
+      if (type === null && template.cols === 6) {
+        // Prázdne nevyužité políčka v 6x6
+        const emptyEl = document.createElement("div");
+        emptyEl.className = "cell blocked";
+        emptyEl.style.gridColumn = String(c + 1);
+        emptyEl.style.gridRow = String(r + 1);
+        puzzleGrid.appendChild(emptyEl);
+        return;
+      }
+
       const el = document.createElement(type === "n" && blanks.has(keyOf(r, c)) ? "button" : "div");
       el.className = "cell";
       el.style.gridColumn = String(c + 1);
@@ -333,7 +310,6 @@ function fillActive(digit) {
   const cell = activeCell();
   if (!cell) return;
   
-  // Umožní zápis až 2 cifier
   if (cell.textContent.length < 2) {
     cell.textContent += digit;
   } else {
@@ -377,7 +353,7 @@ function setFeedback(message, kind) {
   feedbackEl.className = `feedback ${kind}`;
 }
 
-// Skontroluje presnú hodnotu daného políčka na základe vygenerovaného puzzle
+// Vyhodnocovanie po políčkach
 function checkAnswers() {
   if (!puzzle) return;
   const blanks = blankButtons();
@@ -447,7 +423,7 @@ function generatePuzzle() {
 }
 
 function generateFreeplayPuzzle() {
-  updateStageBadge(STAGES[4]); // Extreme obtiažnosť
+  updateStageBadge(STAGES[4]);
   stageLabelEl.textContent = "Freeplay ♾️";
   
   puzzle = generatePuzzleData(4, true);
