@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Logico 🧠</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-glow bg-glow-a"></div>
+    <div class="bg-glow bg-glow-b"></div>
+
+    <div class="app">
+      <header class="topbar">
+        <h1 class="brand">Logico <span aria-hidden="true">🧠</span></h1>
+        <div class="stats">
+          <div class="stat" aria-live="polite">
+            <span class="stat-label">Score</span>
+            <span class="stat-value" id="score">0</span>
+          </div>
+          <div class="stat streak" aria-live="polite">
+            <span class="stat-label">Streak 🔥</span>
+            <span class="stat-value" id="streak">0</span>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <p class="hint">Tap empty squares and use the number pad. Across and down equations share numbers.</p>
+        <section class="board-wrap">
+          <div class="crossword" id="puzzle-grid" aria-label="Math crossword grid"></div>
+        </section>
+
+        <div class="controls">
+          <button type="button" class="btn btn-primary" id="check-btn">Check Answers</button>
+          <button type="button" class="btn btn-secondary" id="next-btn">Next Puzzle</button>
+        </div>
+
+        <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+      </main>
+    </div>
+
+    <div class="numpad" id="numpad" hidden>
+      <div class="numpad-card">
+        <div class="numpad-head">
+          <span id="numpad-label">Enter a number</span>
+          <button type="button" class="numpad-close" id="numpad-close" aria-label="Close number pad">
+            Close
+          </button>
+        </div>
+        <div class="numpad-keys" id="numpad-keys"></div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
