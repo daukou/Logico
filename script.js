@@ -379,6 +379,7 @@ function checkAnswers() {
     streakEl.textContent = String(streak);
     checkedThisRound = true;
     checkBtn.disabled = true;
+    nextBtn.disabled = false; // ODOMKNE TLAČIDLO NEXT PUZZLE PO SKONTROLOVANÍ
   }
 
   closeNumpad();
@@ -397,6 +398,7 @@ function generatePuzzle() {
   puzzle = generatePuzzleData();
   checkedThisRound = false;
   checkBtn.disabled = false;
+  nextBtn.disabled = true; // ZAMKNE TLAČIDLO NEXT PUZZLE PRI NOVEJ ÚLOHE
   closeNumpad();
   renderPuzzle();
   setFeedback("Fill every empty square. Across and down must both work.", "neutral");
