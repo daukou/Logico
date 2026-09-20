@@ -179,7 +179,7 @@ body {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  font-size: clamp(0.7rem, 3.8vw, 1.25rem);
+  font-size: clamp(0.7rem, 3.5vw, 1.25rem);
   font-weight: 700;
   user-select: none;
 }
@@ -201,7 +201,7 @@ body {
   border: 1px solid rgba(34, 211, 238, 0.22);
   color: var(--cyan);
   text-shadow: 0 0 14px rgba(34, 211, 238, 0.4);
-  font-size: clamp(0.85rem, 4.2vw, 1.4rem);
+  font-size: clamp(0.8rem, 3.8vw, 1.35rem);
 }
 
 .cell.eq {
@@ -218,7 +218,7 @@ body {
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: clamp(0.7rem, 3.8vw, 1.25rem);
+  font-size: clamp(0.7rem, 3.5vw, 1.25rem);
   font-weight: 700;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
