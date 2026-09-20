@@ -16,16 +16,15 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
-// Stage definície
+// Všetky obtiažnosti majú skryté PRESNE 3 čísla
 const STAGES = [
-  { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 9, ops: ["+", "-"] },
-  { name: "2/5 Medium", cls: "stage-medium", hide: 4, minNum: 1, maxNum: 15, ops: ["+", "-", "*"] },
-  { name: "3/5 Hard", cls: "stage-hard", hide: 5, minNum: 1, maxNum: 30, ops: ["+", "-", "*", "/"] },
-  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 5, minNum: 10, maxNum: 50, ops: ["+", "-", "*", "/"] },
-  { name: "5/5 Extreme", cls: "stage-extreme", hide: 6, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] }
+  { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 10, ops: ["+", "-"] },
+  { name: "2/5 Medium", cls: "stage-medium", hide: 3, minNum: 1, maxNum: 20, ops: ["+", "-", "*"] },
+  { name: "3/5 Hard", cls: "stage-hard", hide: 3, minNum: 1, maxNum: 40, ops: ["+", "-", "*"] },
+  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 3, minNum: 5, maxNum: 70, ops: ["+", "-", "*", "/"] },
+  { name: "5/5 Extreme", cls: "stage-extreme", hide: 3, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] }
 ];
 
-// Mriežka 5x5: 3 horizontálne a 3 vertikálne rovnice
 const TEMPLATE_GRID = {
   cols: 5,
   rows: 5,
@@ -37,12 +36,12 @@ const TEMPLATE_GRID = {
     ["n", "op", "n", "eq", "n"],
   ],
   equations: [
-    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] },
-    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] },
-    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] },
-    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] },
-    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] },
-    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] },
+    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] }, // Row 1
+    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] }, // Row 2
+    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] }, // Row 3
+    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] }, // Col 1
+    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] }, // Col 2
+    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] }, // Col 3
   ]
 };
 
@@ -55,7 +54,6 @@ function getTodayString() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Generátor seedovania pre "Wordle" rovnaké puzzle pre všetkých v daný deň
 function createPRNG(seed) {
   let s = seed % 2147483647;
   if (s <= 0) s += 2147483646;
@@ -137,80 +135,79 @@ function applyOp(a, op, b) {
 
 function keyOf(r, c) { return `${r},${c}`; }
 
+// Algoritmus na garantované vygenerovanie správnej matice
 function generatePuzzleData(stageIndex, isFreeplayMode = false) {
   const stage = STAGES[stageIndex];
   const template = TEMPLATE_GRID;
   const rng = isFreeplayMode ? Math.random : createPRNG(getDailySeed(stageIndex));
   const opMap = { "+": "+", "-": "−", "*": "×", "/": "÷" };
 
-  for (let attempt = 0; attempt < 1000; attempt++) {
+  for (let attempt = 0; attempt < 10000; attempt++) {
     const values = {};
-    const ops = [];
-    let success = true;
+    const selectedOps = [];
 
-    // Horizontálne rovnice
-    for (let eqIdx = 0; eqIdx < 3; eqIdx++) {
-      const opChoice = opMap[stage.ops[Math.floor(rng() * stage.ops.length)]];
-      ops.push(opChoice);
+    // 1. Vygenerujeme 4 rohové/vstupné čísla (rozmer 2x2 v mriežke čísel: [0,0], [0,2], [2,0], [2,2])
+    const n00 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+    const n02 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+    const n20 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+    const n22 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
 
-      let a = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
-      let b = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
-
-      if (opChoice === "−" && a < b) [a, b] = [b, a];
-      if (opChoice === "÷") {
-        let mult = Math.floor(rng() * 4) + 1;
-        b = Math.floor(rng() * (Math.min(10, stage.maxNum) - stage.minNum + 1)) + stage.minNum;
-        a = b * mult;
-      }
-
-      let c = applyOp(a, opChoice, b);
-      if (c === null || c < stage.minNum || c > stage.maxNum) {
-        success = false; break;
-      }
-
-      const eq = template.equations[eqIdx];
-      values[keyOf(eq.a[0], eq.a[1])] = a;
-      values[keyOf(eq.b[0], eq.b[1])] = b;
-      values[keyOf(eq.c[0], eq.c[1])] = c;
-    }
-
-    if (!success) continue;
-
-    // Vertikálne rovnice
-    for (let eqIdx = 3; eqIdx < 6; eqIdx++) {
-      const eq = template.equations[eqIdx];
-      const a = values[keyOf(eq.a[0], eq.a[1])];
-      const b = values[keyOf(eq.b[0], eq.b[1])];
-
-      const validOps = stage.ops.map(o => opMap[o]).filter(op => {
+    // Najdeme validne op pre R1, R2, C1, C2
+    function getValidOp(a, b) {
+      const valid = stage.ops.map(o => opMap[o]).filter(op => {
         const res = applyOp(a, op, b);
         return res !== null && res >= stage.minNum && res <= stage.maxNum;
       });
-
-      if (validOps.length === 0) { success = false; break; }
-
-      const opChoice = validOps[Math.floor(rng() * validOps.length)];
-      ops.push(opChoice);
-      values[keyOf(eq.c[0], eq.c[1])] = applyOp(a, opChoice, b);
+      return valid.length > 0 ? valid[Math.floor(rng() * valid.length)] : null;
     }
 
-    if (!success) continue;
+    const opR1 = getValidOp(n00, n02);
+    const opR2 = getValidOp(n20, n22);
+    const opC1 = getValidOp(n00, n20);
+    const opC2 = getValidOp(n02, n22);
 
-    // Výber skrytých políčok
+    if (!opR1 || !opR2 || !opC1 || !opC2) continue;
+
+    const n04 = applyOp(n00, opR1, n02);
+    const n24 = applyOp(n20, opR2, n22);
+    const n40 = applyOp(n00, opC1, n20);
+    const n42 = applyOp(n02, opC2, n22);
+
+    // Najdeme op pre 3. stĺpec (C3) a 3. riadok (R3)
+    const opC3 = getValidOp(n04, n24);
+    if (!opC3) continue;
+
+    const n44 = applyOp(n04, opC3, n24);
+
+    // Overíme, či pre R3 (medzi n40 a n42) existuje operácia, ktorej výsledok je presne n44
+    const validR3Ops = stage.ops.map(o => opMap[o]).filter(op => applyOp(n40, op, n42) === n44);
+    if (validR3Ops.length === 0) continue;
+
+    const opR3 = validR3Ops[Math.floor(rng() * validR3Ops.length)];
+
+    // Všetko sedí!
+    values[keyOf(0, 0)] = n00; values[keyOf(0, 2)] = n02; values[keyOf(0, 4)] = n04;
+    values[keyOf(2, 0)] = n20; values[keyOf(2, 2)] = n22; values[keyOf(2, 4)] = n24;
+    values[keyOf(4, 0)] = n40; values[keyOf(4, 2)] = n42; values[keyOf(4, 4)] = n44;
+
+    selectedOps[0] = opR1; selectedOps[1] = opR2; selectedOps[2] = opR3;
+    selectedOps[3] = opC1; selectedOps[4] = opC2; selectedOps[5] = opC3;
+
+    // VŽDY SKRYJEME PRESNE 3 ČÍSLA
     const blanks = new Set();
-    const numberKeys = Object.keys(values);
-    numberKeys.sort(() => rng() - 0.5);
+    const allKeys = Object.keys(values);
+    allKeys.sort(() => rng() - 0.5);
+    allKeys.slice(0, 3).forEach(k => blanks.add(k));
 
-    numberKeys.slice(0, stage.hide).forEach(k => blanks.add(k));
-
-    return { template, ops, values, blanks };
+    return { template, ops: selectedOps, values, blanks };
   }
 
+  // Bezpečnostný fallback s platnými číslami
   return {
     template,
     ops: ["+", "+", "+", "+", "+", "+"],
-    values: { "0,0": 10, "0,2": 15, "0,4": 25, "2,0": 20, "2,2": 30, "2,4": 50, "4,0": 30, "4,2": 45, "4,4": 75 },
-    blanks: new Set(["0,0", "0,2", "2,0"])
+    values: { "0,0": 5, "0,2": 5, "0,4": 10, "2,0": 5, "2,2": 5, "2,4": 10, "4,0": 10, "4,2": 10, "4,4": 20 },
+    blanks: new Set(["0,0", "2,2", "4,4"])
   };
 }
 
