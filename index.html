@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sk">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -20,11 +20,11 @@
       <header class="topbar">
         <h1 class="brand">Logico by Dauko <span aria-hidden="true">🧠</span></h1>
         <div class="stats">
-          <div class="stat" aria-live="polite">
-            <span class="stat-label">Score</span>
-            <span class="stat-value" id="score">0</span>
+          <div class="stat" id="stage-badge" aria-live="polite">
+            <span class="stat-label">Stage</span>
+            <span class="stat-value" id="stage-label">1/5</span>
           </div>
-          <div class="stat streak" aria-live="polite">
+          <div class="stat streak" id="streak-btn" style="cursor: pointer;" aria-live="polite">
             <span class="stat-label">Streak 🔥</span>
             <span class="stat-value" id="streak">0</span>
           </div>
@@ -37,24 +37,16 @@
           <div class="crossword" id="puzzle-grid" aria-label="Math crossword grid"></div>
         </section>
 
-        <div class="difficulty-selector">
-          <label for="difficulty">Difficulty:</label>
-          <select id="difficulty">
-            <option value="easy">Easy</option>
-            <option value="medium" selected>Medium</option>
-            <option value="hard">Hard</option>
-          </select>
-        </div>
-
         <div class="controls">
           <button type="button" class="btn btn-primary" id="check-btn">Check Answers</button>
-          <button type="button" class="btn btn-secondary" id="next-btn">Next Puzzle</button>
+          <button type="button" class="btn btn-secondary" id="next-btn" disabled>Next Puzzle</button>
         </div>
 
         <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
       </main>
     </div>
 
+    <!-- Numpad -->
     <div class="numpad" id="numpad" hidden>
       <div class="numpad-card">
         <div class="numpad-head">
@@ -64,6 +56,17 @@
           </button>
         </div>
         <div class="numpad-keys" id="numpad-keys"></div>
+      </div>
+    </div>
+
+    <!-- Modal pre Kalendár Streaku -->
+    <div id="calendar-modal" class="modal" hidden>
+      <div class="modal-content">
+        <div class="modal-head">
+          <h2 id="calendar-month-name">Kalendár</h2>
+          <button type="button" class="numpad-close" id="modal-close">Close</button>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
       </div>
     </div>
 
