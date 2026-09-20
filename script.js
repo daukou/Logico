@@ -16,7 +16,7 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
-// Úrovne 4, 5 a Freeplay obsahujú *, /
+// Štandardné úrovne
 const STAGES = [
   { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 10, ops: ["+", "-"] },
   { name: "2/5 Medium", cls: "stage-medium", hide: 3, minNum: 1, maxNum: 20, ops: ["+", "-"] },
@@ -135,9 +135,12 @@ function applyOp(a, op, b) {
 
 function keyOf(r, c) { return `${r},${c}`; }
 
-// TVRDÉ VYNÚTENIE NÁSOBENIA/DELENIA A MÚDREJŠIE ČÍSLA
 function generatePuzzleData(stageIndex, isFreeplayMode = false) {
-  const stage = STAGES[stageIndex];
+  // Oddelíme logiku Freeplayu - dostane 3-ciferné čísla (limit 999)
+  const stage = isFreeplayMode 
+    ? { minNum: 2, maxNum: 999, ops: ["+", "-", "*", "/"] } 
+    : STAGES[stageIndex];
+    
   const template = TEMPLATE_GRID;
   const rng = isFreeplayMode ? Math.random : createPRNG(getDailySeed(stageIndex));
   const opMap = { "+": "+", "-": "−", "*": "×", "/": "÷" };
@@ -146,10 +149,10 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     const values = {};
     const selectedOps = [];
 
-    // Pomocná funkcia: Ak má úroveň *, častejšie vyberieme menšie čísla (do 12), aby násobenie neprekročilo maxNum (99)
+    // Vypočítame bezpečný limit pre násobenie (odmocnina zo stropu), aby sme zbytočne neprestreľovali maxNum
     function pickNum() {
       if (stage.ops.includes("*") && rng() < 0.7) { 
-        const maxSmall = Math.min(12, stage.maxNum);
+        const maxSmall = isFreeplayMode ? 31 : 12; // 31 * 31 = 961 (zmestí sa do 999)
         return Math.floor(rng() * (maxSmall - stage.minNum + 1)) + stage.minNum;
       }
       return Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
@@ -193,10 +196,9 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     selectedOps[0] = opR1; selectedOps[1] = opR2; selectedOps[2] = opR3;
     selectedOps[3] = opC1; selectedOps[4] = opC2; selectedOps[5] = opC3;
 
-    // KĽÚČOVÁ KONTROLA: Ak úroveň má mať násobenie a delenie, vyžadujeme, aby v mriežke aspoň jedno naozaj bolo!
     if (stage.ops.includes("*")) {
       const hasComplex = selectedOps.some(o => o === "×" || o === "÷");
-      if (!hasComplex) continue; // Ak sa vygenerovali len plusy a mínusy, skús znova
+      if (!hasComplex) continue; 
     }
 
     values[keyOf(0, 0)] = n00; values[keyOf(0, 2)] = n02; values[keyOf(0, 4)] = n04;
@@ -211,11 +213,10 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     return { template, ops: selectedOps, values, blanks };
   }
 
-  // Fallback istota
   return {
     template,
     ops: ["×", "÷", "×", "÷", "×", "÷"],
-    values: { "0,0": 6, "0,2": 3, "0,4": 18, "2,0": 2, "2,2": 3, "2,4": 6, "4,0": 3, "4,2": 1, "4,4": 3 },
+    values: { "0,0": 15, "0,2": 5, "0,4": 75, "2,0": 3, "2,2": 5, "2,4": 15, "4,0": 5, "4,2": 1, "4,4": 5 },
     blanks: new Set(["0,2", "2,0", "4,4"])
   };
 }
@@ -279,7 +280,8 @@ function fillActive(digit) {
   const cell = activeCell();
   if (!cell) return;
 
-  if (cell.textContent.length < 3) {
+  // Zvýšený limit na 4 cifry pre 3-ciferné Freeplay rovnice (napr. 999 + 999 = 1998)
+  if (cell.textContent.length < 4) {
     cell.textContent += digit;
   } else {
     cell.textContent = digit;
