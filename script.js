@@ -16,7 +16,7 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
-// Nastavenia obtiažností - 4, 5 aj Freeplay obsahujú *, /
+// Úrovne 4, 5 a Freeplay obsahujú *, /
 const STAGES = [
   { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 10, ops: ["+", "-"] },
   { name: "2/5 Medium", cls: "stage-medium", hide: 3, minNum: 1, maxNum: 20, ops: ["+", "-"] },
@@ -135,7 +135,7 @@ function applyOp(a, op, b) {
 
 function keyOf(r, c) { return `${r},${c}`; }
 
-// Garantované generovanie aj s násobením/delením
+// TVRDÉ VYNÚTENIE NÁSOBENIA/DELENIA A MÚDREJŠIE ČÍSLA
 function generatePuzzleData(stageIndex, isFreeplayMode = false) {
   const stage = STAGES[stageIndex];
   const template = TEMPLATE_GRID;
@@ -146,10 +146,19 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     const values = {};
     const selectedOps = [];
 
-    const n00 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
-    const n02 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
-    const n20 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
-    const n22 = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+    // Pomocná funkcia: Ak má úroveň *, častejšie vyberieme menšie čísla (do 12), aby násobenie neprekročilo maxNum (99)
+    function pickNum() {
+      if (stage.ops.includes("*") && rng() < 0.7) { 
+        const maxSmall = Math.min(12, stage.maxNum);
+        return Math.floor(rng() * (maxSmall - stage.minNum + 1)) + stage.minNum;
+      }
+      return Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
+    }
+
+    const n00 = pickNum();
+    const n02 = pickNum();
+    const n20 = pickNum();
+    const n22 = pickNum();
 
     function getValidOp(a, b) {
       const valid = stage.ops.map(o => opMap[o]).filter(op => {
@@ -181,14 +190,19 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
 
     const opR3 = validR3Ops[Math.floor(rng() * validR3Ops.length)];
 
+    selectedOps[0] = opR1; selectedOps[1] = opR2; selectedOps[2] = opR3;
+    selectedOps[3] = opC1; selectedOps[4] = opC2; selectedOps[5] = opC3;
+
+    // KĽÚČOVÁ KONTROLA: Ak úroveň má mať násobenie a delenie, vyžadujeme, aby v mriežke aspoň jedno naozaj bolo!
+    if (stage.ops.includes("*")) {
+      const hasComplex = selectedOps.some(o => o === "×" || o === "÷");
+      if (!hasComplex) continue; // Ak sa vygenerovali len plusy a mínusy, skús znova
+    }
+
     values[keyOf(0, 0)] = n00; values[keyOf(0, 2)] = n02; values[keyOf(0, 4)] = n04;
     values[keyOf(2, 0)] = n20; values[keyOf(2, 2)] = n22; values[keyOf(2, 4)] = n24;
     values[keyOf(4, 0)] = n40; values[keyOf(4, 2)] = n42; values[keyOf(4, 4)] = n44;
 
-    selectedOps[0] = opR1; selectedOps[1] = opR2; selectedOps[2] = opR3;
-    selectedOps[3] = opC1; selectedOps[4] = opC2; selectedOps[5] = opC3;
-
-    // Presne 3 skryté políčka
     const blanks = new Set();
     const allKeys = Object.keys(values);
     allKeys.sort(() => rng() - 0.5);
@@ -197,7 +211,7 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     return { template, ops: selectedOps, values, blanks };
   }
 
-  // Odstránený starý prázdny fallback – vygenerujeme záložnú s násobením
+  // Fallback istota
   return {
     template,
     ops: ["×", "÷", "×", "÷", "×", "÷"],
@@ -377,7 +391,6 @@ function generatePuzzle() {
 }
 
 function generateFreeplayPuzzle() {
-  // Freeplay vždy ťahá náhodnú náročnosť z kategórie Extreme (index 4), ktorá má aj * a /
   updateStageBadge(STAGES[4]);
   stageLabelEl.textContent = "Freeplay ♾️";
 
