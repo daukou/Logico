@@ -1,6 +1,7 @@
 const puzzleGrid = document.getElementById("puzzle-grid");
 const streakEl = document.getElementById("streak");
 const stageLabelEl = document.getElementById("stage-label");
+const stageBadgeEl = document.getElementById("stage-badge");
 const checkBtn = document.getElementById("check-btn");
 const nextBtn = document.getElementById("next-btn");
 const feedbackEl = document.getElementById("feedback");
@@ -15,12 +16,13 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
+// Definícia obtiažností podľa číselných rozsahov (1 alebo 2-ciferné čísla)
 const STAGES = [
-  { name: "1/5 Easy", hide: 3 },
-  { name: "2/5 Medium", hide: 4 },
-  { name: "3/5 Hard", hide: 5 },
-  { name: "4/5 Ultra Hard", hide: 6 },
-  { name: "5/5 Extreme", hide: 7 }
+  { name: "1/5 Easy", cls: "stage-easy", hide: 4, minNum: 1, maxNum: 9, ops: ["+", "-"] },
+  { name: "2/5 Medium", cls: "stage-medium", hide: 4, minNum: 1, maxNum: 20, ops: ["+", "-", "*"] },
+  { name: "3/5 Hard", cls: "stage-hard", hide: 5, minNum: 5, maxNum: 50, ops: ["+", "-", "*", "/"] },
+  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 5, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] },
+  { name: "5/5 Extreme", cls: "stage-extreme", hide: 6, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] }
 ];
 
 const TEMPLATES = [
@@ -46,12 +48,23 @@ const TEMPLATES = [
 ];
 
 let currentStageIndex = 0;
-let checkedThisRound = false;
 let puzzle = null;
 let activeKey = null;
+let isFreeplay = false;
 
 function getTodayString() {
   return new Date().toISOString().split('T')[0];
+}
+
+// Pseudo-náhodný generátor pre fixný denný Seed
+function seededRandom(seed) {
+  let x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+}
+
+function getDailySeed(stageIdx) {
+  const dateStr = getTodayString().replace(/-/g, "");
+  return parseInt(dateStr, 10) * 10 + stageIdx;
 }
 
 function loadDailyProgress() {
@@ -73,13 +86,20 @@ function loadDailyProgress() {
   streakEl.textContent = String(streak);
 
   if (lastPlayed === today) {
-    setFeedback("Dnešnú výzvu si už úspešne dokončil! Vráť sa zajtra.", "good");
-    checkBtn.disabled = true;
-    nextBtn.disabled = true;
-    stageLabelEl.textContent = "Done 🎉";
+    isFreeplay = true;
+    enableFreeplayMode();
     return true;
   }
   return false;
+}
+
+function enableFreeplayMode() {
+  stageLabelEl.textContent = "Freeplay ♾️";
+  stageBadgeEl.className = "stat stage-extreme";
+  setFeedback("Dnešnú výzvu si už úspešne dokončil! Hráš neobmedzený Freeplay módu.", "good");
+  nextBtn.textContent = "Next Puzzle (Freeplay)";
+  nextBtn.disabled = false;
+  generateFreeplayPuzzle();
 }
 
 function completeDailyChallenge() {
@@ -96,9 +116,21 @@ function completeDailyChallenge() {
   localStorage.setItem("logico_completed_days", JSON.stringify(completedDays));
 
   streakEl.textContent = String(streak);
-  stageLabelEl.textContent = "Done 🎉";
-  setFeedback("Výborne! Dokončil si dnešné Extreme puzzle a získal Streak 🔥", "good");
-  nextBtn.disabled = true;
+  isFreeplay = true;
+
+  nextBtn.textContent = "Freeplay ♾️";
+  nextBtn.disabled = false;
+  checkBtn.disabled = true;
+  setFeedback("Awesome! You completed today's challenge. Click 'Freeplay' to play infinite puzzles!", "good");
+}
+
+function randIntSeeded(min, max, seedState) {
+  const rng = seededRandom(seedState.seed++);
+  return Math.floor(rng * (max - min + 1)) + min;
+}
+
+function pickSeeded(arr, seedState) {
+  return arr[randIntSeeded(0, arr.length - 1, seedState)];
 }
 
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -113,7 +145,8 @@ function applyOp(a, op, b) {
   return null;
 }
 
-function isValidNumber(n) { return Number.isInteger(n) && n >= 1 && n <= 99; }
+function isValidNumber(n, min, max) { return Number.isInteger(n) && n >= min && n <= max; }
+
 function invertForB(a, op, c) {
   if (op === "+") return c - a;
   if (op === "−") return a - c;
@@ -137,7 +170,7 @@ function numberCells(template) {
   return cells;
 }
 
-function trySolve(template, ops) {
+function trySolve(template, ops, minNum, maxNum, seedState) {
   const values = {};
   let nodes = 0;
   function get(pos) { return values[keyOf(pos[0], pos[1])]; }
@@ -157,15 +190,15 @@ function trySolve(template, ops) {
           if (applyOp(a, op, b) !== c) return false;
         } else if (a !== undefined && b !== undefined && c === undefined) {
           const res = applyOp(a, op, b);
-          if (!isValidNumber(res)) return false;
+          if (!isValidNumber(res, minNum, maxNum)) return false;
           set(eq.c, res); changed = true;
         } else if (a !== undefined && c !== undefined && b === undefined) {
           const res = invertForB(a, op, c);
-          if (!isValidNumber(res)) return false;
+          if (!isValidNumber(res, minNum, maxNum)) return false;
           set(eq.b, res); changed = true;
         } else if (b !== undefined && c !== undefined && a === undefined) {
           const res = invertForA(b, op, c);
-          if (!isValidNumber(res)) return false;
+          if (!isValidNumber(res, minNum, maxNum)) return false;
           set(eq.a, res); changed = true;
         }
       }
@@ -181,9 +214,11 @@ function trySolve(template, ops) {
     if (index >= cells.length) return true;
 
     const pos = cells[index];
-    const options = Array.from({length: 12}, (_, i) => i + 1);
+    const options = Array.from({length: maxNum - minNum + 1}, (_, i) => i + minNum);
+    
+    // Zamiešanie možností
     for (let i = options.length - 1; i > 0; i -= 1) {
-      const j = randInt(0, i);
+      const j = seedState ? randIntSeeded(0, i, seedState) : randInt(0, i);
       [options[i], options[j]] = [options[j], options[i]];
     }
 
@@ -199,22 +234,31 @@ function trySolve(template, ops) {
   return search(0) ? values : null;
 }
 
-function generatePuzzleData() {
-  const currentStage = STAGES[currentStageIndex];
+function generatePuzzleData(stageIndex, isFreeplayMode = false) {
+  const currentStage = STAGES[stageIndex];
   const targetHide = currentStage.hide;
+  const seedState = isFreeplayMode ? null : { seed: getDailySeed(stageIndex) };
 
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const template = pick(TEMPLATES);
-    const ops = template.equations.map(() => pick(["+", "+", "×", "−", "÷", "×"]));
-    const values = trySolve(template, ops);
+  const opSymbols = { "+": "+", "-": "−", "*": "×", "/": "÷" };
+
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const template = TEMPLATES[0];
+    const rawOps = currentStage.ops.map(() => seedState ? pickSeeded(currentStage.ops, seedState) : pick(currentStage.ops));
+    const ops = rawOps.map(o => opSymbols[o] || o);
+
+    const values = trySolve(template, ops, currentStage.minNum, currentStage.maxNum, seedState);
     if (!values) continue;
 
     const nums = numberCells(template);
-    const hideable = nums.filter(([r, c]) => values[keyOf(r, c)] <= 99);
-    if (hideable.length < targetHide) continue;
-
     const blanks = new Set();
-    const shuffled = [...hideable].sort(() => Math.random() - 0.5);
+    const shuffled = [...nums];
+    
+    if (seedState) {
+      shuffled.sort(() => seededRandom(seedState.seed++) - 0.5);
+    } else {
+      shuffled.sort(() => Math.random() - 0.5);
+    }
+
     shuffled.slice(0, targetHide).forEach((pos) => blanks.add(keyOf(pos[0], pos[1])));
 
     return { template, ops, values, blanks };
@@ -225,7 +269,7 @@ function generatePuzzleData() {
 function fallbackPuzzle() {
   const template = TEMPLATES[0];
   const ops = ["+", "+", "+", "+", "+", "+"];
-  const values = { "0,0": 2, "0,2": 3, "0,4": 5, "2,0": 4, "2,2": 1, "2,4": 5, "4,0": 6, "4,2": 4, "4,4": 10 };
+  const values = { "0,0": 12, "0,2": 15, "0,4": 27, "2,0": 10, "2,2": 20, "2,4": 30, "4,0": 22, "4,2": 35, "4,4": 57 };
   const blanks = new Set(["0,0", "0,2", "2,0"]);
   return { template, ops, values, blanks };
 }
@@ -273,7 +317,7 @@ function selectCell(el) {
   blankButtons().forEach((btn) => btn.classList.remove("active"));
   el.classList.add("active");
   activeKey = el.dataset.key;
-  numpadLabel.textContent = el.textContent ? `Hodnota: ${el.textContent}` : "Zadaj číslo";
+  numpadLabel.textContent = el.textContent ? `Editing ${el.textContent}` : "Enter a number";
   numpadEl.hidden = false;
 }
 
@@ -289,44 +333,21 @@ function fillActive(digit) {
   const cell = activeCell();
   if (!cell) return;
   
-  // Pridanie číslice k existujúcej hodnote (maximálne 2 cifry)
-  let currentVal = cell.textContent;
-  if (currentVal.length >= 2) {
-    currentVal = digit; // Ak už má 2 cifry, začne znova novou číslicou
+  // Umožní zápis až 2 cifier
+  if (cell.textContent.length < 2) {
+    cell.textContent += digit;
   } else {
-    currentVal = currentVal + digit;
+    cell.textContent = digit;
   }
-  
-  cell.textContent = currentVal;
+
   cell.classList.remove("correct", "incorrect");
-  numpadLabel.textContent = `Hodnota: ${currentVal}`;
 }
 
 function clearActive() {
   const cell = activeCell();
   if (!cell) return;
-  
-  if (cell.textContent.length > 1) {
-    cell.textContent = cell.textContent.slice(0, -1); // Odstráni poslednú číslicu
-  } else {
-    cell.textContent = "";
-  }
-  
+  cell.textContent = "";
   cell.classList.remove("correct", "incorrect");
-  numpadLabel.textContent = cell.textContent ? `Hodnota: ${cell.textContent}` : "Zadaj číslo";
-}
-
-function goToNextCell() {
-  const remaining = blankButtons().filter((b) => b.textContent === "" || b.dataset.key !== activeKey);
-  const current = activeCell();
-  const nextEmpty = blankButtons().find((b) => b.textContent === "" && b !== current);
-  if (nextEmpty) {
-    selectCell(nextEmpty);
-  } else if (remaining[0]) {
-    selectCell(remaining[0]);
-  } else {
-    closeNumpad();
-  }
 }
 
 function buildNumpad() {
@@ -339,8 +360,13 @@ function buildNumpad() {
     if (label === "⌫" || label === "Next") btn.classList.add("key-action");
     btn.addEventListener("click", () => {
       if (label === "⌫") clearActive();
-      else if (label === "Next") goToNextCell();
-      else fillActive(label);
+      else if (label === "Next") {
+        const remaining = blankButtons().filter((b) => b.textContent === "" || b.dataset.key !== activeKey);
+        const current = activeCell();
+        const nextEmpty = blankButtons().find((b) => b.textContent === "" && b !== current);
+        if (nextEmpty) selectCell(nextEmpty);
+        else if (remaining[0]) selectCell(remaining[0]);
+      } else fillActive(label);
     });
     numpadKeys.appendChild(btn);
   });
@@ -351,74 +377,85 @@ function setFeedback(message, kind) {
   feedbackEl.className = `feedback ${kind}`;
 }
 
-function cellValue(pos) {
-  const k = keyOf(pos[0], pos[1]);
-  const given = puzzleGrid.querySelector(`[data-key="${k}"][data-given="true"]`);
-  if (given) return Number(given.textContent);
-  const blank = puzzleGrid.querySelector(`button.blank[data-key="${k}"]`);
-  if (!blank || blank.textContent === "") return null;
-  const n = Number(blank.textContent);
-  return Number.isInteger(n) ? n : null;
-}
-
-function equationSatisfied(eq, op) {
-  const a = cellValue(eq.a); const b = cellValue(eq.b); const c = cellValue(eq.c);
-  if (a === null || b === null || c === null) return false;
-  return applyOp(a, op, b) === c;
-}
-
+// Skontroluje presnú hodnotu daného políčka na základe vygenerovaného puzzle
 function checkAnswers() {
   if (!puzzle) return;
   const blanks = blankButtons();
-  const eqResults = puzzle.template.equations.map((eq, i) => equationSatisfied(eq, puzzle.ops[i]));
-  const solvedEq = eqResults.filter(Boolean).length;
+  let correctCount = 0;
 
   blanks.forEach((btn) => {
-    const pos = btn.dataset.key.split(",").map(Number);
-    const related = puzzle.template.equations.some((eq, i) => {
-      const used = [keyOf(eq.a[0], eq.a[1]), keyOf(eq.b[0], eq.b[1]), keyOf(eq.c[0], eq.c[1])];
-      return used.includes(keyOf(pos[0], pos[1])) && !eqResults[i];
-    });
+    const k = btn.dataset.key;
+    const userVal = Number(btn.textContent);
+    const expectedVal = puzzle.values[k];
+
     btn.classList.remove("correct", "incorrect");
-    if (btn.textContent === "" || related) btn.classList.add("incorrect");
-    else btn.classList.add("correct");
+    if (btn.textContent !== "" && userVal === expectedVal) {
+      btn.classList.add("correct");
+      correctCount++;
+    } else {
+      btn.classList.add("incorrect");
+    }
   });
 
-  const allFilled = blanks.every((btn) => btn.textContent !== "");
-  const allSolved = allFilled && solvedEq === puzzle.template.equations.length;
+  const allCorrect = correctCount === blanks.length;
 
-  if (allSolved) {
-    checkedThisRound = true;
+  if (allCorrect) {
     checkBtn.disabled = true;
-    nextBtn.disabled = false;
 
-    if (currentStageIndex === STAGES.length - 1) {
+    if (isFreeplay) {
+      nextBtn.disabled = false;
+      setFeedback("Great job! Puzzle solved.", "good");
+    } else if (currentStageIndex === STAGES.length - 1) {
       completeDailyChallenge();
     } else {
-      setFeedback(`Etapa dokončená! Klikni na "Next Puzzle" pre postúpenie.`, "good");
+      nextBtn.disabled = false;
+      setFeedback('Stage completed! Click "Next Puzzle" to proceed.', "good");
     }
   } else {
-    setFeedback(`Niektoré výpočty nesedia. Skontroluj červené políčka!`, "bad");
+    setFeedback("Some numbers are incorrect. Check the red boxes!", "bad");
   }
   closeNumpad();
 }
 
 function nextStage() {
-  if (currentStageIndex < STAGES.length - 1) {
+  if (isFreeplay) {
+    generateFreeplayPuzzle();
+  } else if (currentStageIndex < STAGES.length - 1) {
     currentStageIndex++;
     generatePuzzle();
+  } else {
+    enableFreeplayMode();
   }
 }
 
+function updateStageBadge(stage) {
+  stageLabelEl.textContent = stage.name;
+  stageBadgeEl.className = `stat ${stage.cls}`;
+}
+
 function generatePuzzle() {
-  stageLabelEl.textContent = STAGES[currentStageIndex].name;
-  puzzle = generatePuzzleData();
-  checkedThisRound = false;
+  const stage = STAGES[currentStageIndex];
+  updateStageBadge(stage);
+  
+  puzzle = generatePuzzleData(currentStageIndex, false);
+  checkBtn.disabled = false;
+  nextBtn.disabled = true;
+  nextBtn.textContent = "Next Puzzle";
+  closeNumpad();
+  renderPuzzle();
+  setFeedback(`Solve stage: ${stage.name}`, "neutral");
+}
+
+function generateFreeplayPuzzle() {
+  updateStageBadge(STAGES[4]); // Extreme obtiažnosť
+  stageLabelEl.textContent = "Freeplay ♾️";
+  
+  puzzle = generatePuzzleData(4, true);
   checkBtn.disabled = false;
   nextBtn.disabled = true;
   closeNumpad();
   renderPuzzle();
-  setFeedback(`Vyrieš etapu: ${STAGES[currentStageIndex].name}`, "neutral");
+  setFeedback("Freeplay mode: Solve the puzzle!", "neutral");
 }
 
 function renderCalendar() {
@@ -475,8 +512,6 @@ document.addEventListener("keydown", (event) => {
     clearActive();
   } else if (event.key === "Escape") {
     closeNumpad();
-  } else if (event.key === "Enter") {
-    goToNextCell();
   }
 });
 
