@@ -8,6 +8,7 @@ const numpadEl = document.getElementById("numpad");
 const numpadKeys = document.getElementById("numpad-keys");
 const numpadClose = document.getElementById("numpad-close");
 const numpadLabel = document.getElementById("numpad-label");
+const difficultySelect = document.getElementById("difficulty");
 
 const OPS = ["+", "−", "×", "÷"];
 
@@ -51,10 +52,54 @@ const TEMPLATES = [
 ];
 
 let score = 0;
-let streak = 0;
 let checkedThisRound = false;
 let puzzle = null;
 let activeKey = null;
+
+// SYSTÉM DENNÉHO STREAKU
+function updateDailyStreak() {
+  const today = new Date().toISOString().split('T')[0];
+  const lastPlayed = localStorage.getItem("logico_last_played");
+  let streak = parseInt(localStorage.getItem("logico_daily_streak") || "0", 10);
+
+  if (lastPlayed) {
+    const lastDate = new Date(lastPlayed);
+    const currentDate = new Date(today);
+    const diffTime = Math.abs(currentDate - lastDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      streak += 1;
+    } else if (diffDays > 1) {
+      streak = 1; // Reset ak vynechal deň
+    }
+  } else {
+    streak = 1;
+  }
+
+  localStorage.setItem("logico_daily_streak", String(streak));
+  localStorage.setItem("logico_last_played", today);
+  streakEl.textContent = String(streak);
+}
+
+function loadDailyStreak() {
+  const today = new Date().toISOString().split('T')[0];
+  const lastPlayed = localStorage.getItem("logico_last_played");
+  let streak = parseInt(localStorage.getItem("logico_daily_streak") || "0", 10);
+
+  if (lastPlayed) {
+    const lastDate = new Date(lastPlayed);
+    const currentDate = new Date(today);
+    const diffTime = Math.abs(currentDate - lastDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 1) {
+      streak = 0;
+      localStorage.setItem("logico_daily_streak", "0");
+    }
+  }
+  streakEl.textContent = String(streak);
+}
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -110,13 +155,8 @@ function trySolve(template, ops) {
   const values = {};
   let nodes = 0;
 
-  function get(pos) {
-    return values[keyOf(pos[0], pos[1])];
-  }
-
-  function set(pos, n) {
-    values[keyOf(pos[0], pos[1])] = n;
-  }
+  function get(pos) { return values[keyOf(pos[0], pos[1])]; }
+  function set(pos, n) { values[keyOf(pos[0], pos[1])] = n; }
 
   function propagate() {
     let changed = true;
@@ -183,22 +223,25 @@ function trySolve(template, ops) {
 }
 
 function generatePuzzleData() {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  const diff = difficultySelect ? difficultySelect.value : "medium";
+  let targetHide = 4;
+  if (diff === "easy") targetHide = 3;
+  if (diff === "medium") targetHide = randInt(4, 5);
+  if (diff === "hard") targetHide = 6;
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     const template = pick(TEMPLATES);
     const ops = template.equations.map(() => pick(["+", "+", "×", "−", "÷", "×"]));
     const values = trySolve(template, ops);
     if (!values) continue;
 
     const nums = numberCells(template);
-    const hideable = nums.filter(([r, c]) => values[keyOf(r, c)] <= 9);
-    if (hideable.length < 3) continue;
+    const hideable = nums.filter(([r, c]) => values[keyOf(r, c)] <= 99);
+    if (hideable.length < targetHide) continue;
 
     const blanks = new Set();
     const shuffled = [...hideable].sort(() => Math.random() - 0.5);
-    const hideCount = Math.min(shuffled.length, randInt(4, Math.max(4, shuffled.length - 2)));
-    shuffled.slice(0, hideCount).forEach((pos) => blanks.add(keyOf(pos[0], pos[1])));
-
-    if (blanks.size < 3) continue;
+    shuffled.slice(0, targetHide).forEach((pos) => blanks.add(keyOf(pos[0], pos[1])));
 
     return { template, ops, values, blanks };
   }
@@ -210,17 +253,11 @@ function fallbackPuzzle() {
   const template = TEMPLATES[0];
   const ops = ["+", "+", "+", "+", "+", "+"];
   const values = {
-    "0,0": 2,
-    "0,2": 3,
-    "0,4": 5,
-    "2,0": 4,
-    "2,2": 1,
-    "2,4": 5,
-    "4,0": 6,
-    "4,2": 4,
-    "4,4": 10,
+    "0,0": 2, "0,2": 3, "0,4": 5,
+    "2,0": 4, "2,2": 1, "2,4": 5,
+    "4,0": 6, "4,2": 4, "4,4": 10,
   };
-  const blanks = new Set(["0,0", "0,2", "2,0", "2,2", "4,0"]);
+  const blanks = new Set(["0,0", "0,2", "2,0"]);
   return { template, ops, values, blanks };
 }
 
@@ -375,11 +412,12 @@ function checkAnswers() {
   if (!checkedThisRound) {
     score += solvedEq * 10;
     scoreEl.textContent = String(score);
-    streak = allSolved ? streak + 1 : 0;
-    streakEl.textContent = String(streak);
+    if (allSolved) {
+      updateDailyStreak();
+    }
     checkedThisRound = true;
     checkBtn.disabled = true;
-    nextBtn.disabled = false; // ODOMKNE TLAČIDLO NEXT PUZZLE PO SKONTROLOVANÍ
+    nextBtn.disabled = false;
   }
 
   closeNumpad();
@@ -398,7 +436,7 @@ function generatePuzzle() {
   puzzle = generatePuzzleData();
   checkedThisRound = false;
   checkBtn.disabled = false;
-  nextBtn.disabled = true; // ZAMKNE TLAČIDLO NEXT PUZZLE PRI NOVEJ ÚLOHE
+  nextBtn.disabled = true;
   closeNumpad();
   renderPuzzle();
   setFeedback("Fill every empty square. Across and down must both work.", "neutral");
@@ -407,6 +445,9 @@ function generatePuzzle() {
 checkBtn.addEventListener("click", checkAnswers);
 nextBtn.addEventListener("click", generatePuzzle);
 numpadClose.addEventListener("click", closeNumpad);
+if (difficultySelect) {
+  difficultySelect.addEventListener("change", generatePuzzle);
+}
 
 document.addEventListener("keydown", (event) => {
   if (numpadEl.hidden && !activeKey) return;
@@ -421,5 +462,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+loadDailyStreak();
 buildNumpad();
 generatePuzzle();
