@@ -273,7 +273,7 @@ function selectCell(el) {
   blankButtons().forEach((btn) => btn.classList.remove("active"));
   el.classList.add("active");
   activeKey = el.dataset.key;
-  numpadLabel.textContent = el.textContent ? `Editing ${el.textContent}` : "Enter a number";
+  numpadLabel.textContent = el.textContent ? `Hodnota: ${el.textContent}` : "Zadaj číslo";
   numpadEl.hidden = false;
 }
 
@@ -288,19 +288,45 @@ function activeCell() { return blankButtons().find((btn) => btn.dataset.key === 
 function fillActive(digit) {
   const cell = activeCell();
   if (!cell) return;
-  cell.textContent = digit;
+  
+  // Pridanie číslice k existujúcej hodnote (maximálne 2 cifry)
+  let currentVal = cell.textContent;
+  if (currentVal.length >= 2) {
+    currentVal = digit; // Ak už má 2 cifry, začne znova novou číslicou
+  } else {
+    currentVal = currentVal + digit;
+  }
+  
+  cell.textContent = currentVal;
   cell.classList.remove("correct", "incorrect");
-  const remaining = blankButtons().filter((btn) => btn.textContent === "");
-  const next = remaining.find((btn) => btn !== cell) || remaining[0];
-  if (next) selectCell(next);
-  else closeNumpad();
+  numpadLabel.textContent = `Hodnota: ${currentVal}`;
 }
 
 function clearActive() {
   const cell = activeCell();
   if (!cell) return;
-  cell.textContent = "";
+  
+  if (cell.textContent.length > 1) {
+    cell.textContent = cell.textContent.slice(0, -1); // Odstráni poslednú číslicu
+  } else {
+    cell.textContent = "";
+  }
+  
   cell.classList.remove("correct", "incorrect");
+  numpadLabel.textContent = cell.textContent ? `Hodnota: ${cell.textContent}` : "Zadaj číslo";
+}
+
+function goToNextCell() {
+  const remaining = blankButtons().filter((b) => b.textContent === "" || b.dataset.key !== activeKey);
+  const current = activeCell();
+  const nextEmpty = blankButtons().find((b) => b.textContent === "" && b !== current);
+  if (nextEmpty) {
+    selectCell(nextEmpty);
+  } else if (remaining[0]) {
+    selectCell(remaining[0]);
+  } else {
+    closeNumpad();
+  }
 }
 
 function buildNumpad() {
@@ -313,13 +339,8 @@ function buildNumpad() {
     if (label === "⌫" || label === "Next") btn.classList.add("key-action");
     btn.addEventListener("click", () => {
       if (label === "⌫") clearActive();
-      else if (label === "Next") {
-        const remaining = blankButtons().filter((b) => b.textContent === "" || b.dataset.key !== activeKey);
-        const current = activeCell();
-        const nextEmpty = blankButtons().find((b) => b.textContent === "" && b !== current);
-        if (nextEmpty) selectCell(nextEmpty);
-        else if (remaining[0]) selectCell(remaining[0]);
-      } else fillActive(label);
+      else if (label === "Next") goToNextCell();
+      else fillActive(label);
     });
     numpadKeys.appendChild(btn);
   });
@@ -454,6 +475,8 @@ document.addEventListener("keydown", (event) => {
     clearActive();
   } else if (event.key === "Escape") {
     closeNumpad();
+  } else if (event.key === "Enter") {
+    goToNextCell();
   }
 });
 
