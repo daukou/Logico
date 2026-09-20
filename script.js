@@ -16,17 +16,17 @@ const modalClose = document.getElementById("modal-close");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthName = document.getElementById("calendar-month-name");
 
-// Definícia Stage-ov
+// Stage definície
 const STAGES = [
-  { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 9, ops: ["+", "-"], size: 5 },
-  { name: "2/5 Medium", cls: "stage-medium", hide: 4, minNum: 1, maxNum: 15, ops: ["+", "-", "*"], size: 5 },
-  { name: "3/5 Hard", cls: "stage-hard", hide: 5, minNum: 1, maxNum: 30, ops: ["+", "-", "*", "/"], size: 5 },
-  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 5, minNum: 10, maxNum: 50, ops: ["+", "-", "*", "/"], size: 5 },
-  { name: "5/5 Extreme 6x6", cls: "stage-extreme", hide: 7, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"], size: 6 }
+  { name: "1/5 Easy", cls: "stage-easy", hide: 3, minNum: 1, maxNum: 9, ops: ["+", "-"] },
+  { name: "2/5 Medium", cls: "stage-medium", hide: 4, minNum: 1, maxNum: 15, ops: ["+", "-", "*"] },
+  { name: "3/5 Hard", cls: "stage-hard", hide: 5, minNum: 1, maxNum: 30, ops: ["+", "-", "*", "/"] },
+  { name: "4/5 Ultra Hard", cls: "stage-ultrahard", hide: 5, minNum: 10, maxNum: 50, ops: ["+", "-", "*", "/"] },
+  { name: "5/5 Extreme", cls: "stage-extreme", hide: 6, minNum: 10, maxNum: 99, ops: ["+", "-", "*", "/"] }
 ];
 
-// Šablóna 5x5
-const TEMPLATE_5x5 = {
+// Mriežka 5x5: 3 horizontálne a 3 vertikálne rovnice
+const TEMPLATE_GRID = {
   cols: 5,
   rows: 5,
   cells: [
@@ -35,28 +35,6 @@ const TEMPLATE_5x5 = {
     ["n", "op", "n", "eq", "n"],
     ["eq", null, "eq", null, "eq"],
     ["n", "op", "n", "eq", "n"],
-  ],
-  equations: [
-    { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] },
-    { a: [2, 0], b: [2, 2], c: [2, 4], op: [2, 1] },
-    { a: [4, 0], b: [4, 2], c: [4, 4], op: [4, 1] },
-    { a: [0, 0], b: [2, 0], c: [4, 0], op: [1, 0] },
-    { a: [0, 2], b: [2, 2], c: [4, 2], op: [1, 2] },
-    { a: [0, 4], b: [2, 4], c: [4, 4], op: [1, 4] },
-  ]
-};
-
-// Šablóna 6x6
-const TEMPLATE_6x6 = {
-  cols: 6,
-  rows: 6,
-  cells: [
-    ["n", "op", "n", "eq", "n", null],
-    ["op", null, "op", null, "op", null],
-    ["n", "op", "n", "eq", "n", null],
-    ["eq", null, "eq", null, "eq", null],
-    ["n", "op", "n", "eq", "n", null],
-    [null, null, null, null, null, null]
   ],
   equations: [
     { a: [0, 0], b: [0, 2], c: [0, 4], op: [0, 1] },
@@ -77,7 +55,7 @@ function getTodayString() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Deterministický Seed pre synchrónny denný puzzle (Worlde style)
+// Generátor seedovania pre "Wordle" rovnaké puzzle pre všetkých v daný deň
 function createPRNG(seed) {
   let s = seed % 2147483647;
   if (s <= 0) s += 2147483646;
@@ -159,28 +137,25 @@ function applyOp(a, op, b) {
 
 function keyOf(r, c) { return `${r},${c}`; }
 
-// Rýchly a stabilný generátor matematických rovníc
 function generatePuzzleData(stageIndex, isFreeplayMode = false) {
   const stage = STAGES[stageIndex];
-  const template = stage.size === 6 ? TEMPLATE_6x6 : TEMPLATE_5x5;
+  const template = TEMPLATE_GRID;
   const rng = isFreeplayMode ? Math.random : createPRNG(getDailySeed(stageIndex));
   const opMap = { "+": "+", "-": "−", "*": "×", "/": "÷" };
 
   for (let attempt = 0; attempt < 1000; attempt++) {
     const values = {};
     const ops = [];
-
-    // Vytvorenie rovníc pre riadky a stĺpce
     let success = true;
 
-    // Horizontálne 3 rovnice
+    // Horizontálne rovnice
     for (let eqIdx = 0; eqIdx < 3; eqIdx++) {
       const opChoice = opMap[stage.ops[Math.floor(rng() * stage.ops.length)]];
       ops.push(opChoice);
 
       let a = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
       let b = Math.floor(rng() * (stage.maxNum - stage.minNum + 1)) + stage.minNum;
-      
+
       if (opChoice === "−" && a < b) [a, b] = [b, a];
       if (opChoice === "÷") {
         let mult = Math.floor(rng() * 4) + 1;
@@ -201,13 +176,12 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
 
     if (!success) continue;
 
-    // Vertikálne 3 rovnice
+    // Vertikálne rovnice
     for (let eqIdx = 3; eqIdx < 6; eqIdx++) {
       const eq = template.equations[eqIdx];
       const a = values[keyOf(eq.a[0], eq.a[1])];
       const b = values[keyOf(eq.b[0], eq.b[1])];
-      
-      // Nájdeme vhodnú operáciu pre existujúce A a B
+
       const validOps = stage.ops.map(o => opMap[o]).filter(op => {
         const res = applyOp(a, op, b);
         return res !== null && res >= stage.minNum && res <= stage.maxNum;
@@ -222,7 +196,7 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
 
     if (!success) continue;
 
-    // Výber skrytých políčok (blanks)
+    // Výber skrytých políčok
     const blanks = new Set();
     const numberKeys = Object.keys(values);
     numberKeys.sort(() => rng() - 0.5);
@@ -232,7 +206,6 @@ function generatePuzzleData(stageIndex, isFreeplayMode = false) {
     return { template, ops, values, blanks };
   }
 
-  // Bezpečný Fallback ak by náhodou generovanie zlyhalo
   return {
     template,
     ops: ["+", "+", "+", "+", "+", "+"],
@@ -248,16 +221,6 @@ function renderPuzzle() {
 
   template.cells.forEach((row, r) => {
     row.forEach((type, c) => {
-      if (type === null && template.cols === 6) {
-        // Prázdne nevyužité políčka v 6x6
-        const emptyEl = document.createElement("div");
-        emptyEl.className = "cell blocked";
-        emptyEl.style.gridColumn = String(c + 1);
-        emptyEl.style.gridRow = String(r + 1);
-        puzzleGrid.appendChild(emptyEl);
-        return;
-      }
-
       const el = document.createElement(type === "n" && blanks.has(keyOf(r, c)) ? "button" : "div");
       el.className = "cell";
       el.style.gridColumn = String(c + 1);
@@ -309,7 +272,7 @@ function activeCell() { return blankButtons().find((btn) => btn.dataset.key === 
 function fillActive(digit) {
   const cell = activeCell();
   if (!cell) return;
-  
+
   if (cell.textContent.length < 2) {
     cell.textContent += digit;
   } else {
@@ -353,7 +316,6 @@ function setFeedback(message, kind) {
   feedbackEl.className = `feedback ${kind}`;
 }
 
-// Vyhodnocovanie po políčkach
 function checkAnswers() {
   if (!puzzle) return;
   const blanks = blankButtons();
@@ -412,7 +374,7 @@ function updateStageBadge(stage) {
 function generatePuzzle() {
   const stage = STAGES[currentStageIndex];
   updateStageBadge(stage);
-  
+
   puzzle = generatePuzzleData(currentStageIndex, false);
   checkBtn.disabled = false;
   nextBtn.disabled = true;
@@ -425,7 +387,7 @@ function generatePuzzle() {
 function generateFreeplayPuzzle() {
   updateStageBadge(STAGES[4]);
   stageLabelEl.textContent = "Freeplay ♾️";
-  
+
   puzzle = generatePuzzleData(4, true);
   checkBtn.disabled = false;
   nextBtn.disabled = true;
